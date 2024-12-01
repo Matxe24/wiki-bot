@@ -1,96 +1,113 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const chatOutput = document.getElementById('chat-output');
-    const userInput = document.getElementById('user-input');
     const sendButton = document.getElementById('send-button');
+    const infoButton = document.getElementById('info-button');
+    const userInput = document.getElementById('user-input');
+    const chatOutput = document.querySelector('.chat-output');
+    const modal = document.getElementById('info-modal');
+    const closeButton = document.querySelector('.close-button');
 
-    // Funzione per aggiungere i messaggi alla chat
-    function appendMessage(sender, message) {
-        const messageDiv = document.createElement('div');
-        messageDiv.textContent = `${sender}: ${message}`;
-        messageDiv.className = sender === 'ChatBot' ? 'bot-message' : 'user-message';
-        chatOutput.appendChild(messageDiv);
-        chatOutput.scrollTop = chatOutput.scrollHeight; // Scroll automatico
-    }
+    // Funzione per estrarre il termine da cercare
+    function extractSearchQuery(input) {
+        const cleanInput = input.trim(); // Rimuoviamo spazi
 
-    // Funzione per rimuovere i tag HTML dalla risposta
-    function removeHTMLTags(text) {
-        const doc = new DOMParser().parseFromString(text, 'text/html');
-        return doc.body.textContent || "";
-    }
+        // Pattern per estrarre il termine
+        const patterns = [
+            /\bchi\b\s*(è|era|sono|siamo)\s+(.+)$/i,  // "Chi è <nome>" o "Chi era <nome>"
+            /\bcos'\b\s*(è|è\s+la)\s+(.+)$/i,  // "Cos'è <nome>" o "Cos'è la <nome>"
+            /\bcome\b\s*(si\s+chiama)\s+(.+)$/i,  // "Come si chiama <nome>"
+        ];
 
-    // Funzione per rimuovere LaTeX e MathML
-    function removeLaTeX(text) {
-        let latexFree = text.replace(/\\displaystyle.*?}/g, ''); // Formula in LaTeX
-        latexFree = latexFree.replace(/\\\[(.*?)\\\]/g, ''); // Formula in LaTeX tra \[ \]
-        latexFree = latexFree.replace(/\\\(.*?\\\)/g, ''); // Formula in LaTeX tra \( \)
-        latexFree = latexFree.replace(/<math.*?<\/math>/g, ''); // Rimuovi MathML
-        return latexFree;
-    }
-
-    // Funzione per decodificare le entità HTML (ad esempio &lt; -> <)
-    function decodeHTML(text) {
-        const txt = document.createElement('textarea');
-        txt.innerHTML = text;
-        return txt.value;
-    }
-
-    // Funzione per limitare il numero di parole
-    function shortenTextByWords(text, maxWords = 30) {
-        // Dividi il testo in parole usando spazi come delimitatori
-        const words = text.trim().split(/\s+/);
-        if (words.length > maxWords) {
-            // Se ci sono più parole di quelle consentite, tronca
-            return words.slice(0, maxWords).join(' ') + '...';
+        // Proviamo a fare il match con ogni pattern
+        for (let pattern of patterns) {
+            const match = cleanInput.match(pattern);
+            if (match && match[2]) {
+                console.log("Termine estratto:", match[2]);
+                return match[2].trim(); // Restituisce il nome trovato
+            }
         }
-        return text; // Se il numero di parole è inferiore o uguale al limite, restituisci il testo intero
+
+        // Se l'input è "Chi è" o simile, chiediamo di essere più specifici
+        if (/^(chi è|cos'è|come si chiama)$/i.test(cleanInput)) {
+            return null;
+        }
+
+        // Se l'input è un nome o termine, lo restituiamo direttamente
+        console.log("Input trattato come termine generico:", cleanInput);
+        return cleanInput;
     }
 
-    // Funzione per ottenere la risposta da Wikipedia utilizzando AllOrigins
-    async function getWikipediaAnswer(query) {
-        const proxyUrl = 'https://api.allorigins.win/get?url=';
-        const targetUrl = 'https://it.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&exintro=&titles=';
-
+    // Funzione per cercare su Wikipedia
+    async function searchWikipedia(query) {
+        if (!query) return "Non ho trovato un termine da cercare. Prova a essere più specifico.";
         try {
-            // Fai la richiesta tramite AllOrigins per bypassare CORS
-            const response = await fetch(proxyUrl + encodeURIComponent(targetUrl + query));
+            const response = await fetch(
+                `https://api.allorigins.win/get?url=${encodeURIComponent(`https://it.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&exintro&titles=${query}&redirects=1`)}`
+            );
             const data = await response.json();
+            const page = JSON.parse(data.contents).query.pages;
+            const pageId = Object.keys(page)[0];
+            const pageContent = page[pageId];
 
-            // Estrai la pagina dalla risposta
-            const pages = JSON.parse(data.contents).query.pages;
-            const page = Object.values(pages)[0];
-
-            if (page.missing) {
-                return "Mi dispiace, non ho trovato informazioni su questa pagina.";
+            if (pageContent.missing) {
+                return `Non ho trovato nulla su Wikipedia riguardo a "${query}".`;
             }
 
-            // Rimuovi i tag HTML, le formule LaTeX, MathML e decodifica le entità HTML dalla risposta
-            let cleanText = removeHTMLTags(page.extract);
-            cleanText = removeLaTeX(cleanText); // Rimuovi LaTeX
-            cleanText = decodeHTML(cleanText); // Decodifica entità HTML
-
-            // Limita la lunghezza del testo in base al numero di parole
-            const shortText = shortenTextByWords(cleanText, 1000); // Limita a 30 parole
-
-            return shortText;
+            console.log("Risultato trovato su Wikipedia:", pageContent.extract);
+            return pageContent.extract;
         } catch (error) {
-            console.error("Errore durante la richiesta:", error);
-            return "Si è verificato un errore nella ricerca su Wikipedia.";
+            console.error("Errore durante la ricerca:", error);
+            return "Si è verificato un errore durante la ricerca su Wikipedia.";
         }
     }
 
-    // Gestisci l'invio del messaggio
-    sendButton.addEventListener('click', async () => {
-        const userMessage = userInput.value.trim();
-        if (userMessage) {
-            appendMessage('Tu', userMessage);
+    // Funzione per inviare il messaggio
+    sendButton.addEventListener('click', async function () {
+        const query = userInput.value.trim();
+
+        if (query) {
+            chatOutput.innerHTML += `<div class="user-message">${query}</div>`;
+
+            // Estrai il termine di ricerca
+            const searchQuery = extractSearchQuery(query);
+
+            if (!searchQuery) {
+                chatOutput.innerHTML += `<div class="bot-message">Per favore, specifica di chi o cosa stai parlando. Esempio: 'Chi è Albert Einstein?' o 'Cos'è la teoria della relatività?'</div>`;
+            } else {
+                chatOutput.innerHTML += `<div class="bot-message">Sto cercando su Wikipedia...</div>`;
+                chatOutput.scrollTop = chatOutput.scrollHeight;
+
+                // Cerca su Wikipedia
+                const response = await searchWikipedia(searchQuery);
+
+                chatOutput.innerHTML += `<div class="bot-message">${response}</div>`;
+            }
+
+            chatOutput.scrollTop = chatOutput.scrollHeight;
             userInput.value = ''; // Pulisci l'input
-            const botResponse = await getWikipediaAnswer(userMessage);
-            appendMessage('ChatBot', botResponse);
+        }
+    });
+
+    // Funzione per aprire il modal Info
+    infoButton.addEventListener('click', () => {
+        modal.style.display = 'block';
+    });
+
+    // Funzione per chiudere il modal Info
+    closeButton.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+
+    // Chiudi il modal cliccando fuori
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
         }
     });
 
     // Consenti l'invio anche con il tasto Enter
     userInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendButton.click();
+        if (e.key === 'Enter') {
+            sendButton.click();
+        }
     });
 });
