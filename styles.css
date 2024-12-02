@@ -328,7 +328,7 @@ body {
 
 #info-button:hover {
     background: #ffa500;
-    color: #0f172a;
+    color: #00ffaa;
     transform: scale(1.1);
 }
 
@@ -400,7 +400,7 @@ body {
 }
 
 .close-button:hover {
-    color: #ff8c00;
+    color: #00ffaa;
 }
 .length-buttons {
     display: flex;
