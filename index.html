@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WikiBot</title>
+    <link href="https://fonts.googleapis.com/css2?family=Söhne:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --text-primary: #FFFFFF;
+            --text-secondary: #c5c5d2;
+            --background-primary: #343541;
+            --background-secondary: #202123;
+            --highlight: #2A2B32;
+            --border-color: hsla(0, 0%, 100%, .2);
+        }
+
+        /* Light theme */
+        [data-theme="light"] {
+            --text-primary: #000000;
+            --text-secondary: #4a4a4a;
+            --background-primary: #ffffff;
+            --background-secondary: #f7f7f8;
+            --highlight: #f0f0f0;
+            --border-color: rgba(0, 0, 0, .1);
+        }
+
+        /* Dark contrast theme */
+        [data-theme="dark-contrast"] {
+            --text-primary: #00ff88;
+            --text-secondary: #00cc6a;
+            --background-primary: #1a1a1a;
+            --background-secondary: #000000;
+            --highlight: #2d2d2d;
+            --border-color: #00ff88;
+        }
+
+        /* Aggiungi stili per il testo glow nel tema dark contrast */
+        [data-theme="dark-contrast"] .message-content {
+            text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+        }
+
+        [data-theme="dark-contrast"] .chat-input {
+            text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Söhne', sans-serif;
+        }
+
+        body {
+            background: var(--background-primary);
+            color: var(--text-primary);
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--background-secondary);
+            width: var(--sidebar-width);
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .new-chat {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            background: transparent;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .new-chat:hover {
+            background: var(--highlight);
+        }
+
+        .history {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .chat-history-item {
+            padding: 12px;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chat-history-item:hover {
+            background: var(--highlight);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: relative;
+            padding-bottom: 120px;
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 0;
+            margin-bottom: 24px;
+        }
+
+        .message-row {
+            padding: 24px;
+            display: flex;
+            align-items: flex-start;
+            gap: 24px;
+        }
+
+        .message-row.user {
+            background: var(--highlight);
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .user .avatar {
+            background: #5437DB;
+        }
+
+        .bot .avatar {
+            background: #11A37F;
+        }
+
+        .message-content {
+            flex: 1;
+            line-height: 1.6;
+            max-width: 800px;
+        }
+
+        .input-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 24px;
+            background: linear-gradient(180deg, transparent, var(--background-primary) 50%);
+        }
+
+        .input-box {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .chat-input {
+            width: 100%;
+            padding: 16px 48px 16px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--highlight);
+            color: var(--text-primary);
+            font-size: 16px;
+            line-height: 1.5;
+            resize: none;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .send-btn {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .send-btn:hover {
+            color: var(--text-primary);
+        }
+
+        /* Scrollbar Styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        /* Add to existing styles */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes glow {
+            0% { box-shadow: 0 0 5px rgba(17, 163, 127, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(17, 163, 127, 0.8); }
+            100% { box-shadow: 0 0 5px rgba(17, 163, 127, 0.5); }
+        }
+
+        .message-row {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .chat-history-item {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .avatar {
+            transition: all 0.3s ease;
+        }
+
+        .avatar:hover {
+            animation: pulse 1s infinite;
+        }
+
+        .send-btn svg {
+            transition: all 0.3s ease;
+        }
+
+        .send-btn:hover svg {
+            transform: scale(1.1) rotate(-10deg);
+        }
+
+        .new-chat {
+            transition: all 0.3s ease;
+        }
+
+        .new-chat:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Settings Panel */
+        .settings-panel-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .settings-panel {
+            background: var(--background-secondary);
+            border-radius: 8px;
+            padding: 24px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .settings-close {
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .settings-option {
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .settings-option:hover {
+            background: var(--highlight);
+        }
+
+        .settings-option label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .settings-option input {
+            width: 100%;
+            padding: 8px;
+            background: var(--background-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+        }
+
+        .settings-save {
+            background: #11A37F;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .settings-save:hover {
+            animation: glow 1.5s infinite;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            right: 0;
+            padding: 12px 24px;
+            z-index: 1000;
+        }
+
+        .settings-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .settings-btn:hover {
+            background: var(--highlight);
+            transform: translateY(-2px);
+        }
+
+        .settings-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <button class="new-chat">
+            <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="24" width="24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Nuova chat
+        </button>
+        <div class="history">
+            <!-- Chat history will be populated here -->
+        </div>
+    </div>
+
+    <div class="header">
+        <button class="settings-btn">
+            <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            Settings
+        </button>
+    </div>
+
+    <div class="main-content">
+        <div class="chat-container">
+            <div class="message-row bot">
+                <div class="avatar">W</div>
+                <div class="message-content">
+                    Ciao! Sono WikiBot. Puoi chiedermi informazioni su qualsiasi argomento e cercherò su Wikipedia per te. Prova con domande come "Chi è Einstein?" o "Cos'è la relatività?"
+                </div>
+            </div>
+        </div>
+        <div class="input-container">
+            <div class="input-box">
+                <textarea class="chat-input" rows="1" placeholder="Chiedi qualcosa..."></textarea>
+                <button class="send-btn">
+                    <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="16" width="16"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-panel-overlay">
+        <div class="settings-panel">
+            <div class="settings-header">
+                <h2>Settings</h2>
+                <div class="settings-close">✕</div>
+            </div>
+            <div class="settings-option">
+                <label>Word Limit</label>
+                <input type="number" id="settings-word-limit" value="30" min="1">
+            </div>
+            <div class="settings-option">
+                <label>Language</label>
+                <select id="settings-language" style="width: 100%; padding: 8px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary);">
+                    <option value="it">Italiano</option>
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                    <option value="fr">Français</option>
+                    <option value="ja">日本語</option>
+                </select>
+            </div>
+            <div class="settings-option">
+                <label>Theme</label>
+                <select id="theme-select" style="width: 100%; padding: 8px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary);">
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                    <option value="dark-contrast">Dark Contrast (Glow)</option>
+                </select>
+            </div>
+            <button class="settings-save">Save Settings</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let maxWords = 30;
+            const wordLimitInput = document.getElementById('word-limit');
+            const setLengthBtn = document.getElementById('set-length');
+            const settingsWordLimit = document.getElementById('settings-word-limit');
+
+            // Aggiungi debug per verificare che gli elementi siano trovati
+            console.log('Word limit input:', wordLimitInput);
+            console.log('Set length button:', setLengthBtn);
+            console.log('Settings word limit:', settingsWordLimit);
+
+            // Carica il limite di parole salvato o usa il default
+            maxWords = parseInt(localStorage.getItem('wordLimit')) || 30;
+            if (wordLimitInput) wordLimitInput.value = maxWords;
+            if (settingsWordLimit) settingsWordLimit.value = maxWords;
+
+            // Gestione del controllo lunghezza nella barra laterale
+            if (setLengthBtn && wordLimitInput) {
+                // Aggiungi un log per verificare che questo blocco viene eseguito
+                console.log('Adding click listener to set length button');
+                
+                setLengthBtn.addEventListener('click', () => {
+                    // Aggiungi un log per verificare che il click viene rilevato
+                    console.log('Set length button clicked');
+                    
+                    const newLimit = parseInt(wordLimitInput.value);
+                    console.log('New limit:', newLimit);
+                    
+                    if (newLimit > 0) {
+                        maxWords = newLimit;
+                        localStorage.setItem('wordLimit', maxWords);
+                        if (settingsWordLimit) settingsWordLimit.value = maxWords;
+                        console.log('Word limit updated to:', maxWords);
+                    }
+                });
+            }
+
+            const chatInput = document.querySelector('.chat-input');
+            const sendBtn = document.querySelector('.send-btn');
+            const chatContainer = document.querySelector('.chat-container');
+            const history = document.querySelector('.history');
+            const settingsBtn = document.querySelector('.settings-btn');
+            const settingsPanel = document.querySelector('.settings-panel-overlay');
+            const settingsClose = document.querySelector('.settings-close');
+            const settingsSave = document.querySelector('.settings-save');
+            const languageSelect = document.getElementById('settings-language');
+            const themeSelect = document.getElementById('theme-select');
+            const newChatBtn = document.querySelector('.new-chat');
+
+            // Debug per vedere se gli elementi vengono trovati
+            console.log('Settings button:', settingsBtn);
+            console.log('Settings panel:', settingsPanel);
+            console.log('Settings close:', settingsClose);
+            console.log('Settings save:', settingsSave);
+            console.log('Language select:', languageSelect);
+            console.log('Theme select:', themeSelect);
+
+            let currentLang = localStorage.getItem('language') || 'it';
+            if (languageSelect) {
+                languageSelect.value = currentLang;
+            }
+
+            // Carica il tema salvato o usa il tema predefinito
+            let currentTheme = localStorage.getItem('theme') || 'dark';
+            document.body.setAttribute('data-theme', currentTheme);
+            if (themeSelect) {
+                themeSelect.value = currentTheme;
+            }
+
+            // Auto-resize textarea
+            chatInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+
+            // Aggiungi un oggetto per memorizzare le conversazioni
+            const chatHistory = {};
+
+            function saveChat(query, conversation) {
+                chatHistory[query] = conversation;
+                // Salva anche nel localStorage per persistenza
+                localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+            }
+
+            function loadSavedChats() {
+                const saved = localStorage.getItem('chatHistory');
+                if (saved) {
+                    Object.assign(chatHistory, JSON.parse(saved));
+                    // Popola la sidebar con le chat salvate
+                    Object.keys(chatHistory).forEach(query => {
+                        addToHistory(query, false); // false = non salvare di nuovo
+                    });
+                }
+            }
+
+            function addToHistory(query, shouldSave = true) {
+                const existingItems = Array.from(history.children);
+                const exists = existingItems.some(item => 
+                    item.textContent.trim() === query.trim()
+                );
+                
+                if (!exists) {
+                    const item = document.createElement('div');
+                    item.className = 'chat-history-item';
+                    item.innerHTML = `
+                        <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="16" width="16"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        ${query}
+                    `;
+                    item.addEventListener('click', () => {
+                        loadChat(query);
+                    });
+                    history.insertBefore(item, history.firstChild);
+                }
+            }
+
+            function loadChat(query) {
+                if (chatHistory[query]) {
+                    // Pulisci la chat corrente
+                    chatContainer.innerHTML = '';
+                    // Ripristina la conversazione salvata
+                    chatHistory[query].forEach(msg => {
+                        addMessage(msg.content, msg.isUser);
+                    });
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+            }
+
+            function addMessage(content, isUser = false, isLoading = false) {
+                const messageRow = document.createElement('div');
+                messageRow.className = `message-row ${isUser ? 'user' : 'bot'}`;
+                
+                if (isLoading) {
+                    messageRow.innerHTML = `
+                        <div class="avatar">W</div>
+                        <div class="message-content">
+                            <div class="typing-indicator">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    messageRow.innerHTML = `
+                        <div class="avatar">${isUser ? 'U' : 'W'}</div>
+                        <div class="message-content">${content}</div>
+                    `;
+                }
+                
+                chatContainer.appendChild(messageRow);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+
+            // Aggiungi configurazione lingue
+            const languageConfig = {
+                it: {
+                    welcome: "Ciao! Sono WikiBot. Puoi chiedermi informazioni su qualsiasi argomento e cercherò su Wikipedia per te. Prova con domande come \"Chi è Einstein?\" o \"Cos'è la relatività?\"",
+                    inputPlaceholder: "Chiedi qualcosa...",
+                    newChat: "Nuova chat",
+                    errorMsg: "Si è verificato un errore durante la ricerca.",
+                    noQuery: "Per favore, specifica di chi o cosa stai parlando. Esempio: 'Chi è Albert Einstein?' o 'Cos'è la teoria della relatività?'",
+                    noResults: "Non ho trovato nulla su Wikipedia riguardo a",
+                    patterns: [
+                        /\bchi\b\s*(è|era|sono|siamo)\s+(.+)$/i,
+                        /\bcos'\b\s*(è|è\s+la)\s+(.+)$/i,
+                        /\bcome\b\s*(si\s+chiama)\s+(.+)$/i,
+                    ]
+                },
+                en: {
+                    welcome: "Hi! I'm WikiBot. You can ask me about any topic and I'll search Wikipedia for you. Try questions like \"Who is Einstein?\" or \"What is relativity?\"",
+                    inputPlaceholder: "Ask something...",
+                    newChat: "New chat",
+                    errorMsg: "An error occurred during the search.",
+                    noQuery: "Please specify who or what you're talking about. Example: 'Who is Albert Einstein?' or 'What is the theory of relativity?'",
+                    noResults: "I couldn't find anything on Wikipedia about",
+                    patterns: [
+                        /\bwho\b\s*(is|was|are)\s+(.+)$/i,
+                        /\bwhat\b\s*(is|was|are)\s+(.+)$/i,
+                        /\bhow\b\s*(is|was|are)\s+(.+)$/i,
+                    ]
+                },
+                es: {
+                    welcome: "¡Hola! Soy WikiBot. Puedes preguntarme sobre cualquier tema y buscaré en Wikipedia por ti. Prueba con preguntas como \"¿Quién es Einstein?\" o \"¿Qué es la relatividad?\"",
+                    inputPlaceholder: "Pregunta algo...",
+                    newChat: "Nueva conversación",
+                    errorMsg: "Se produjo un error durante la búsqueda.",
+                    noQuery: "Por favor, especifica de quién o qué estás hablando. Ejemplo: '¿Quién es Albert Einstein?' o '¿Qué es la teoría de la relatividad?'",
+                    noResults: "No encontré nada en Wikipedia sobre",
+                    patterns: [
+                        /\bquién\b\s*(es|era|son)\s+(.+)$/i,
+                        /\bqué\b\s*(es|era|son)\s+(.+)$/i,
+                        /\bcómo\b\s*(es|era|son)\s+(.+)$/i,
+                    ]
+                },
+                fr: {
+                    welcome: "Bonjour! Je suis WikiBot. Vous pouvez me poser des questions sur n'importe quel sujet et je chercherai sur Wikipédia pour vous. Essayez des questions comme \"Qui est Einstein?\" ou \"Qu'est-ce que la relativité?\"",
+                    inputPlaceholder: "Posez une question...",
+                    newChat: "Nouvelle conversation",
+                    errorMsg: "Une erreur s'est produite lors de la recherche.",
+                    noQuery: "Veuillez préciser de qui ou de quoi vous parlez. Exemple: 'Qui est Albert Einstein?' ou 'Qu'est-ce que la théorie de la relativité?'",
+                    noResults: "Je n'ai rien trouvé sur Wikipédia à propos de",
+                    patterns: [
+                        /\bqui\b\s*(est|était|sont)\s+(.+)$/i,
+                        /\bqu['e]\b\s*(est-ce\s+que|est|sont)\s+(.+)$/i,
+                        /\bcomment\b\s*(est|était|sont)\s+(.+)$/i,
+                    ]
+                },
+                ja: {
+                    welcome: "こんにちは！WikiBotです。どんなトピックについても質問してください。Wikipediaで検索します。「アインシュタインとは？」や「相対性理論とは？」のような質問を試してみてください。",
+                    inputPlaceholder: "質問してください...",
+                    newChat: "新しいチャット",
+                    errorMsg: "検索中にエラーが発生しました。",
+                    noQuery: "誰について、または何について話しているか指定してください。例：'アインシュタインとは誰ですか？'または'相対性理論とは何ですか？'",
+                    noResults: "Wikipediaで以下に関する情報が見つかりませんでした：",
+                    patterns: [
+                        /(.+)(とは|って|は誰|について)$/i,
+                        /(.+)(を|について|とは)教えて/i,
+                        /(.+)(は何|とは何)/i,
+                    ]
+                }
+            };
+
+            function shortenTextByWords(text, wordLimit) {
+                const words = text.split(/\s+/);
+                if (words.length <= wordLimit) return text;
+                return words.slice(0, wordLimit).join(' ') + '...';
+            }
+
+            async function searchWikipedia(query) {
+                if (!query) return languageConfig[currentLang].noQuery;
+                try {
+                    // Prima chiamata API per cercare il titolo
+                    const searchResponse = await fetch(
+                        `https://${currentLang}.wikipedia.org/w/api.php?action=opensearch&format=json&search=${encodeURIComponent(query)}&limit=1&namespace=0&origin=*`
+                    );
+                    const searchData = await searchResponse.json();
+                    const titles = searchData[1];
+                    
+                    if (!titles || titles.length === 0) {
+                        return `${languageConfig[currentLang].noResults} "${query}".`;
+                    }
+
+                    // Seconda chiamata API per ottenere il contenuto
+                    const contentResponse = await fetch(
+                        `https://${currentLang}.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&exintro=1&explaintext=1&titles=${encodeURIComponent(titles[0])}&origin=*`
+                    );
+                    const contentData = await contentResponse.json();
+                    const pages = contentData.query.pages;
+                    const pageId = Object.keys(pages)[0];
+                    const content = pages[pageId].extract;
+
+                    if (!content) {
+                        return `${languageConfig[currentLang].noResults} "${query}".`;
+                    }
+
+                    return shortenTextByWords(content, maxWords);
+                } catch (error) {
+                    console.error('Wikipedia API Error:', error);
+                    return languageConfig[currentLang].errorMsg;
+                }
+            }
+
+            function extractSearchQuery(input) {
+                const cleanInput = input.trim();
+                const patterns = languageConfig[currentLang].patterns;
+
+                for (let pattern of patterns) {
+                    const match = cleanInput.match(pattern);
+                    if (match && match[2]) {
+                        return match[2].trim();
+                    }
+                }
+
+                return cleanInput;
+            }
+
+            // Aggiorna l'interfaccia quando cambia la lingua
+            function updateInterface() {
+                document.querySelector('.chat-input').placeholder = languageConfig[currentLang].inputPlaceholder;
+                document.querySelector('.new-chat').innerHTML = `
+                    <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="24" width="24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    ${languageConfig[currentLang].newChat}
+                `;
+            }
+
+            // Aggiorna quando si salvano le impostazioni
+            if (settingsSave) {
+                settingsSave.addEventListener('click', () => {
+                    if (languageSelect) {
+                        const newLang = languageSelect.value;
+                        if (newLang !== currentLang) {
+                            currentLang = newLang;
+                            localStorage.setItem('language', currentLang);
+                            updateInterface();
+                            chatContainer.innerHTML = `
+                                <div class="message-row bot">
+                                    <div class="avatar">W</div>
+                                    <div class="message-content">
+                                        ${languageConfig[currentLang].welcome}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    // Salva il tema
+                    if (themeSelect) {
+                        const newTheme = themeSelect.value;
+                        document.body.setAttribute('data-theme', newTheme);
+                        localStorage.setItem('theme', newTheme);
+                    }
+                    
+                    // Salva il limite di parole
+                    if (settingsWordLimit) {
+                        const newLimit = parseInt(settingsWordLimit.value);
+                        if (newLimit > 0) {
+                            maxWords = newLimit;
+                            localStorage.setItem('wordLimit', maxWords);
+                            if (wordLimitInput) wordLimitInput.value = maxWords;
+                        }
+                    }
+                    
+                    if (settingsPanel) {
+                        settingsPanel.style.display = 'none';
+                    }
+                });
+            }
+
+            // Inizializza l'interfaccia con la lingua corrente
+            updateInterface();
+
+            // Gestione invio messaggio
+            sendBtn.addEventListener('click', handleSend);
+
+            // Gestione invio con tasto Enter (senza Shift per andare a capo)
+            chatInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                }
+            });
+
+            async function handleSend() {
+                const message = chatInput.value.trim();
+                if (!message) return;
+
+                // Clear input
+                chatInput.value = '';
+                chatInput.style.height = 'auto';
+
+                // Aggiungi il messaggio dell'utente
+                addMessage(message, true);
+                addToHistory(message);
+
+                const searchQuery = extractSearchQuery(message);
+                if (!searchQuery) {
+                    const response = languageConfig[currentLang].noQuery;
+                    addMessage(response);
+                } else {
+                    // Aggiungi l'indicatore di caricamento
+                    const loadingDiv = document.createElement('div');
+                    loadingDiv.className = 'message-row bot';
+                    loadingDiv.innerHTML = `
+                        <div class="avatar">W</div>
+                        <div class="message-content">
+                            <div class="typing-indicator">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                            </div>
+                        </div>
+                    `;
+                    chatContainer.appendChild(loadingDiv);
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+                    try {
+                        const response = await searchWikipedia(searchQuery);
+                        loadingDiv.remove();
+                        addMessage(response);
+                    } catch (error) {
+                        loadingDiv.remove();
+                        addMessage(languageConfig[currentLang].errorMsg);
+                        console.error('Error:', error);
+                    }
+                }
+            }
+
+            // Gestione cambio tema
+            if (themeSelect) {
+                themeSelect.addEventListener('change', (e) => {
+                    const newTheme = e.target.value;
+                    document.body.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('theme', newTheme);
+                });
+            }
+
+            // Aggiungi handler per il pulsante nuova chat
+            if (newChatBtn) {
+                newChatBtn.addEventListener('click', () => {
+                    // Pulisci la chat container
+                    chatContainer.innerHTML = `
+                        <div class="message-row bot">
+                            <div class="avatar">W</div>
+                            <div class="message-content">
+                                ${languageConfig[currentLang].welcome}
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Pulisci l'input
+                    chatInput.value = '';
+                    chatInput.style.height = 'auto';
+                    
+                    // Scorri in alto
+                    chatContainer.scrollTop = 0;
+                });
+            }
+
+            // Gestione pannello impostazioni
+            if (settingsBtn && settingsPanel) {
+                settingsBtn.addEventListener('click', () => {
+                    console.log('Settings button clicked');
+                    settingsPanel.style.display = 'flex';
+                });
+            }
+
+            if (settingsClose) {
+                settingsClose.addEventListener('click', () => {
+                    console.log('Settings close clicked');
+                    settingsPanel.style.display = 'none';
+                });
+            }
+
+            // Chiudi il pannello quando si clicca fuori
+            if (settingsPanel) {
+                settingsPanel.addEventListener('click', (e) => {
+                    if (e.target === settingsPanel) {
+                        settingsPanel.style.display = 'none';
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html> 
